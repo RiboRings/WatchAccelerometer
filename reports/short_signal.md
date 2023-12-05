@@ -250,17 +250,19 @@ df.columns
 
 **Question B**: Look into the `accelerometerAcceleration` and `motionUserAcceleration` sensors. What do you think is the relationship between the two? Confirm your suspicion in code.
 
-The two sets of variables appear to be highly correlated. Assumed that there is no lag in the measurement, this is expected, because the accelerometer should detect a greater acceleration as the user speeds up their motion.
+The two sets of variables appear to be highly positivelly correlated. Assuming no lag in the recordings, the correlation is expected because the accelerometer should detect a greater acceleration as the user's motion increases.
 
 
 ```python
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+#Calculate the correlation coefficient between each accelerometer and motion axis and access them in the matrix generated
 corrX = np.corrcoef(df["accelerometerAccelerationX(G)"], df["motionUserAccelerationX(G)"])[1, 0]
 corrY = np.corrcoef(df["accelerometerAccelerationY(G)"], df["motionUserAccelerationY(G)"])[1, 0]
 corrZ = np.corrcoef(df["accelerometerAccelerationZ(G)"], df["motionUserAccelerationZ(G)"])[1, 0]
 
+#Plot Accelerometer (Y axis) and Motion (X axis)
 fig, axes = plt.subplots(1, 3)
 
 fig.set_figheight(5)
@@ -286,7 +288,7 @@ plt.tight_layout()
 
 **Question C**: What useful features could be extracted from the three axes of these recordings?
 
-Because acceleration is defined as the change in velocity, these variables can be used to assess motion status and direction: motion is stable in a given direction when corresponding acceleration is zero, and it undergoes change when acceleration is non-zero.
+Because acceleration is defined as the change in velocity, these variables can be used to assess motion status and direction: motion is stable in a given direction when corresponding acceleration is zero, and it undergoes change when acceleration is non-zero. Thus, the plots will show a linear graph with a positive slope, crossing the (0,0) coordinate.
 
 **Question E**: One of the first things, which is important to know is the Frequency sampling (Fs). We are not provided it directly, but how can we approximate it given the data?
 
@@ -296,9 +298,16 @@ Mean sampling frequency was 50.25 Hz. The sampling intervals seemed to vary more
 ```python
 import datetime as dt
 
+#Adapt data from loggingTime(txt) into datetime format
 sample_times = [dt.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f+02:00") for time in df["loggingTime(txt)"]]
+
+#Calculate the differences between consecutive time points and store it in a matrix  
 sample_diffs = np.array([time.microseconds for time in np.diff(sample_times)]) / 1e6
+
+#Create a new collumn with elapsed time starting at 0 (becomes relevant in question D)
 df["Time"] = np.array([time.seconds + time.microseconds / 1e6 for time in np.array(sample_times) - sample_times[0]])
+
+#Using formula of frequency and mean value for Delta time calculated in sample_diffs
 sample_freq = 1 / np.mean(sample_diffs)
 
 print(f"Mean Interval: {np.mean(sample_diffs):.4f} s")
@@ -315,6 +324,7 @@ print(f"Sampling frequency: {sample_freq:.2f} Hz")
 
 
 ```python
+#Plot interval over time and its distribution AND plot frequency over time and its distribution
 fig, axes = plt.subplots(2, 2)
 
 fig.set_figheight(6)
@@ -350,7 +360,7 @@ As shown above, we see an average of 20 milliseconds per sample. In total, the m
 
 
 ```python
-# Compute measurement length
+# Compute measurement length and convert it all to seconds
 mes_len = sample_times[-1] - sample_times[0]
 mes_len = mes_len.seconds + mes_len.microseconds / 1e6
 
@@ -366,13 +376,20 @@ print(f"Total length of the measurement: {mes_len} s")
 ```python
 import re
 
+#Given the five sets sensors, we have a linearly plotting function intaking the dataframe, list of variable names, and display axis
 def plot_combinations(df, ylist, ax):
 
     for y in ylist:
+
+        #from list, variable names were stripped apart and core information was selected to substitute variable name
         ylab = re.sub("(motion|pedometer)(User)?(.+)\(.+\)", "\\3", y)
+
+        #Line plot with previously created variable "Time" and each variable in ylist
         sns.lineplot(df, x="Time", y=y, ax=ax, label=ylab)
 
     ax.legend()
+    
+    #For each plot, make y axis read the unit in parenthesis for each set of sensor
     ax.set_ylabel(re.sub(".+\((.+)\)", "\\1", ylist[0]))
 
 plot_num = 5
@@ -403,6 +420,8 @@ plt.tight_layout()
 
 **Question A**: After the initial exploration, what can you say about the structure of the data? On different time-scales, what do you think the different intervals represent?
 
+The data seems to aggregate more readings at the beggining and at the end of the recordings. On different time-scales, the intervals are on average similar, at 20 msec, but when they differ they tend to increase--which can represent internal mechanisms to capture data more frequently due to sudden changes in steady states.
+
 **Question B**: Using the tools we have learned, can you find the frequency of the steps? How? Describe in words the meaning behind your calculations.
 
 According to FFT, the step frequency is about 0.05 Hz. This is unlikely, because it would convert to a strikingly slow step cadence of about 1 step every 20 seconds. A mistake might be present either in the conversion to frequency domain by FFT, or in the choice of the base frequency from the FFT plot.
@@ -417,7 +436,7 @@ freq = np.fft.fftfreq(signal_length)[:signal_length // 2]
 # Perform FFT for the signal in every coordinate
 spx = np.fft.fft(df["motionUserAccelerationX(G)"])[:signal_length // 2]
 spy = np.fft.fft(df["motionUserAccelerationY(G)"])[:signal_length // 2]
-spz = np.fft.fft(df["motionUserAccelerationY(G)"])[:signal_length // 2]
+spz = np.fft.fft(df["motionUserAccelerationZ(G)"])[:signal_length // 2]
 
 # Find base frequency in every coordinate
 step_freqX = freq[np.where(spx == max(spx))]
@@ -441,13 +460,16 @@ fig.set_figwidth(5)
 
 axes[0].plot(freq, spx.real)
 axes[0].set_ylabel("Magnitude")
+axes[0].legend("X coordinate")
 
 axes[1].plot(freq, spy.real)
 axes[1].set_ylabel("Magnitude")
+axes[1].legend("Y coordinate")
 
 axes[2].plot(freq, spz.real)
 axes[2].set_ylabel("Magnitude")
 axes[2].set_xlabel("Frequency (Hz)")
+axes[2].legend("Z coordinate")
 
 plt.tight_layout()
 ```

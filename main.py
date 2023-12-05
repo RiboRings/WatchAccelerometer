@@ -36,5 +36,5 @@ for report in report_list:
         # Run command
         os.system(exe_command)
         # Remove initial notebook
-        os.remove(report_dir + report)
+        # os.remove(report_dir + report)
 
